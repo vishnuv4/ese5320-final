@@ -86,7 +86,6 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
         }
         hash = (hash * PRIME) - (buff[i] * pow_replace[16]) + (buff[i + WIN_SIZE] * PRIME);
     }
-    debug++;
 
     chunk_size = buff_size - 1 - chunk_indices.back();
     //hard chunking at the end of packet
