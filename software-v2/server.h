@@ -9,10 +9,9 @@
 #define HEADER 2  // max number of elements we can get from ethernet
 #define NUM_ELEMENTS 16384
 
-#define INPUT_FILE          "gtk+.tar"
+#define INPUT_FILE          "Franklin.txt"
 #define ENCODER_OUT_FILE    "en_out.txt"
 #define DECODER_OUT_FILE    "decode_out.txt"
-#define CHUNK_FILE          "chunked_data.txt"
 
 class ESE532_Server{
 public:

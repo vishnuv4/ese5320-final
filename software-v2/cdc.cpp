@@ -2,6 +2,8 @@
 #include <math.h>
 #include <climits>
 static const uint32_t pow_replace[17] = {3, 9, 27, 81, 243, 729, 2187, 6561, 19683, 59049, 177147, 531441, 1594323, 4782969, 14348907, 43046721, 129140163};
+static uint32_t chunk_ctr=0;
+
 uint64_t hash_func(unsigned char* input, unsigned int pos)
 {
    
@@ -14,14 +16,13 @@ uint64_t hash_func(unsigned char* input, unsigned int pos)
 
 void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &hashTable, FILE *encode_fp)
 {
-    static unsigned int debug=0;
 
-    std::vector<unsigned long> chunk_indices;
-    uint32_t header;
+    std::vector<unsigned long> chunk_indices;   // store the chunk indices, this is cleared for every new packet
+    int out_hw_size;                            // store the output of the lzw 
+    uint32_t header;                    
     unsigned char output_hw[PACKET_SIZE];
-    int out_hw_size;
     char chunk_arr[8192];
-    static uint32_t chunk_ctr=0;
+    
     unsigned int counter = 0;
     SHA256_CTX ctx;
     unsigned int chunk_size=0;
@@ -32,17 +33,14 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
     bool seen;
     unsigned int j=0;
 
-//    if(buff_size == 0){
-//        std::cout << "Empty buffer!" << std::endl;
-//        std::cout << "debug val: " << debug << std::endl;
-//        return;
-//    }
 
     for (i = WIN_SIZE; i < buff_size-WIN_SIZE; i++) {
-        debug++;
+
         counter++;
+
         memset(sha_output,0,SHA256_BLOCK_SIZE);
-        if ((hash % MODULUS == TARGET || counter == 4096) && counter > 1000) {
+        
+        if ((hash % MODULUS == TARGET || counter == 4096) && counter > 100) {
             if(firstfound == 1){
                 chunk_size = i+1;
                 //sha_timer.start();
@@ -86,11 +84,6 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
             j++;
             counter = 0;
         }
-//        if((debug > 184125000)){
-//            std::cout << debug << std::endl;
-//            std::cout << "i: " << i << std::endl;
-//            std::cout << "buff size: " << buff_size << std::endl;
-//        }
         hash = (hash * PRIME) - (buff[i] * pow_replace[16]) + (buff[i + WIN_SIZE] * PRIME);
     }
     debug++;
@@ -109,8 +102,6 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
     //dedup_timer.stop();
     chunk_ctr++;
     if(seen){
-        //debug
-        //end
         header = (hashTable.back().id);
         header = header << 1;
         header |= (1<<0);
@@ -137,7 +128,6 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
         fwrite(output_hw, sizeof(unsigned char), out_hw_size, encode_fp);
         
     }
-    //dedup_timer.stop();
     chunk_indices.clear();
     chunk_size = 0;
 }

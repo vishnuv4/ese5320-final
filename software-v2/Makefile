@@ -1,7 +1,7 @@
 ENCODER_SOURCES = testbench.cpp sha256.cpp cdc.cpp decoder.cpp dedup.cpp main.h sha256.h lzw.cpp server.cpp server.h
 COMPILER = g++
 OUTPUT = executable
-INPUT_FILE = gtk+.tar
+INPUT_FILE = Franklin.txt
 CODED_FILE = en_out.txt
 DECODED_FILE = decode_out.txt
 
