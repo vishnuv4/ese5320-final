@@ -24,7 +24,7 @@
 #define PACKET_SIZE 	8192
 #define CHUNK_SIZE      8192
 #define PRIME           3
-           
+#define COMPRESSED_DATA_SIZE    20000
 
 #define CAPACITY   8192 // hash output is 15 bits, and we have 1 entry per bucket, so capacity is 2^15
 //#define CAPACITY 4096
