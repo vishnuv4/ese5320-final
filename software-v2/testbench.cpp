@@ -71,7 +71,6 @@ int main()
         else{
             done = 1;
         }
-
    
     } while (!done);
 

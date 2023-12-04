@@ -213,6 +213,12 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 	unsigned long hash_table[CAPACITY][2];
 	assoc_mem my_assoc_mem;
 
+    //new
+    unsigned char output_byte2 = 0;
+    uint32_t bp_push_index2 = 0;
+    unsigned char output_hw2[PACKET_SIZE];
+    //end
+
 	// make sure the memories are clear
 	for (int i = 0; i < CAPACITY; i++) {
 		for (int j = 0; j < 2; j++) {
@@ -234,32 +240,67 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 	// }
 
 	unsigned int i = 0;
-	//while (i < s1_len)
 	while (i < s1_len) {
 		if (i + 1 == s1_len) {
 			output_buff[push_index] = prefix_code;
 			push_index++;
+            if(bp_push_index % 3 == 0){
+                output_byte |= (prefix_code & 0xFF0) >> 4;
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+                output_byte = 0;
+                output_byte |= (prefix_code & 0x00F) << 4;
+                output_byte &= ~(0xF);
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+            }
+            else{
+                output_byte |= (prefix_code & 0xF00) >> 8;
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+                output_byte = 0;
+                output_byte |= prefix_code & 0x0FF;
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+            }
+            *out_hw_size = bp_push_index;
 			break;
 		}
 
 		next_char = chunk_arr[i + 1];
 
 		bool hit = 0;
-		//std::cout << "prefix_code " << prefix_code << " next_char " << next_char << std::endl;
 		lookup(hash_table, &my_assoc_mem, (prefix_code << 8) + next_char, &hit,
 				&code);
 		if (!hit) {
-			//            std::cout << prefix_code << "--";
-			//            std::cout << "\n";
 			output_buff[push_index] = prefix_code;
 			push_index++;
+
+            if(bp_push_index % 3 == 0){
+                output_byte |= (prefix_code & 0xFF0) >> 4;
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+                output_byte = 0;
+                output_byte |= (prefix_code & 0x00F) << 4;
+                output_byte &= ~(0xF);
+            }
+            else{
+                output_byte |= (prefix_code & 0xF00) >> 8;
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+                output_byte = 0;
+                output_byte |= prefix_code & 0x0FF;
+                output_hw[bp_push_index] = output_byte;
+                bp_push_index++;
+                output_byte = 0;
+            }
 
 			bool collision = 0;
 			insert(hash_table, &my_assoc_mem, (prefix_code << 8) + next_char,
 					next_code, &collision);
 			if (collision) {
 				std::cout << "ERROR: FAILED TO INSERT! NO MORE ROOM IN ASSOC MEM!" << std::endl;
-				*out_hw_size = push_index;
+//				*out_hw_size = push_index;
 				break;
 			}
 			next_code += 1;
@@ -271,43 +312,7 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 
 		i++;
 	}
-
-	*out_hw_size = push_index * 3 / 2;
-	if(push_index % 2 == 1){
-		*out_hw_size += 1;
-	}
-
-//void bitpack(int *input, int input_size, BYTE *output) {
-
-	for (int i = 0; i < push_index; i += 2) {
-		output_byte |= (output_buff[i] & 0xFF0) >> 4;
-		//        vec.push_back(output_byte);
-		output_hw[bp_push_index] = output_byte;
-		bp_push_index++;
-		output_byte = 0;
-		output_byte |= (output_buff[i] & 0x00F) << 4;
-		if (push_index % 2 != 0 && i == push_index - 1) {
-			output_byte &= ~(0xF);
-		} else {
-			output_byte |= (output_buff[i + 1] & 0xF00) >> 8;
-			//            vec.push_back(output_byte);
-			output_hw[bp_push_index] = output_byte;
-			bp_push_index++;
-			output_byte = 0;
-			output_byte |= output_buff[i + 1] & 0x0FF;
-		}
-		//        vec.push_back(output_byte);
-		output_hw[bp_push_index] = output_byte;
-		bp_push_index++;
-		output_byte = 0;
-	}
-
-//	*output_size = push_index;
-
-//	bitpack(output_buff, push_index, output_hw);
-//	std::cout << "Compressed chunk of size " << *out_hw_size << std::endl;
 }
-
 //****************************************************************************************************************
 // "Golden" functions to check correctness
 //std::vector<int> encoding(std::string s1)
@@ -406,32 +411,4 @@ void bitpack(int *input, int input_size, BYTE *output) {
 		push_index++;
 		output_byte = 0;
 	}
-
-//	*output_size = push_index;
 }
-//std::vector<unsigned char> bitpack_sw(std::vector<int> input)
-//{
-//    unsigned char output_byte = 0;
-//    int size = input.size();
-//    std::vector<unsigned char> vec;
-//
-//    for (int i = 0; i < size; i += 2) {
-//        output_byte |= (input[i] & 0xFF0) >> 4;
-//        vec.push_back(output_byte);
-//        output_byte = 0;
-//        output_byte |= (input[i] & 0x00F) << 4;
-//        if (size % 2 != 0 && i == size - 1) {
-//            output_byte &= ~(0xF);
-//        }
-//        else {
-//            output_byte |= (input[i + 1] & 0xF00) >> 8;
-//            vec.push_back(output_byte);
-//            output_byte = 0;
-//            output_byte |= input[i + 1] & 0x0FF;
-//        }
-//        vec.push_back(output_byte);
-//        output_byte = 0;
-//    }
-//
-//    return vec;
-//}
