@@ -147,7 +147,6 @@ void assoc_insert(assoc_mem *mem, unsigned int key, unsigned int value,
 
 void assoc_lookup(assoc_mem *mem, unsigned int key, bool *hit,
 		unsigned int *result) {
-	//std::cout << "assoc_lookup():" << std::endl;
 	key &= 0xFFFFF; // make sure key is only 20 bits
 
 	unsigned int match_high = mem->upper_key_mem[(key >> 18) % 512];
@@ -166,11 +165,8 @@ void assoc_lookup(assoc_mem *mem, unsigned int key, bool *hit,
 	if (address != ASSOC_MEM_STORE) {
 		*result = mem->value[address];
 		*hit = 1;
-		//std::cout << "\thit the assoc" << std::endl;
-		//std::cout << "\t(k,v) = " << key << " " << *result << std::endl;
 	} else {
 		*hit = 0;
-		//std::cout << "\tmissed the assoc" << std::endl;
 	}
 }
 //****************************************************************************************************************
@@ -190,25 +186,16 @@ void lookup(unsigned long hash_table[][2], assoc_mem *mem, unsigned int key,
 	}
 }
 
-//void hardware_encoding(int *out_size, int *output_buff, char *s1, int s1_len) {
 void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_arr, unsigned int s1_len)
 {
-#pragma HLS INTERFACE m_axi port=out_size depth=1 bundle=axismm1
-#pragma HLS INTERFACE m_axi port=output_buff depth=8192 bundle=axismm2
-#pragma HLS INTERFACE m_axi port=s1 depth=8192 bundle=axismm1
-//#pragma HLS INTERFACE m_axi port=s1_len depth=4 bundle=p0
 
 	int next_code = 256;
-
 	unsigned int prefix_code = chunk_arr[0];
 	unsigned int code = 0;
 	unsigned char next_char = 0;
 	unsigned char output_byte = 0;
-	uint32_t bp_push_index = 0;
+	uint32_t bp_push_index = 0;    
 
-	int output_buff[PACKET_SIZE];
-
-	int push_index = 0;
 	// create hash table and assoc mem
 	unsigned long hash_table[CAPACITY][2];
 	assoc_mem my_assoc_mem;
@@ -226,12 +213,14 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 		my_assoc_mem.lower_key_mem[i] = 0;
 	}
 
+    // main loop to iterate through the chunk
 	unsigned int i = 0;
 	while (i < s1_len) {
-		if (i + 1 == s1_len) {
-			output_buff[push_index] = prefix_code;
-			push_index++;
-            if(bp_push_index % 3 == 0){
+        // Complete bitpacking in the last iteration 
+		if (i + 1 == s1_len) 
+        {
+            if(bp_push_index % 3 == 0)
+            {
                 output_byte |= (prefix_code & 0xFF0) >> 4;
                 output_hw[bp_push_index] = output_byte;
                 bp_push_index++;
@@ -241,7 +230,8 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
                 output_hw[bp_push_index] = output_byte;
                 bp_push_index++;
             }
-            else{
+            else
+            {
                 output_byte |= (prefix_code & 0xF00) >> 8;
                 output_hw[bp_push_index] = output_byte;
                 bp_push_index++;
@@ -257,13 +247,23 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 		next_char = chunk_arr[i + 1];
 
 		bool hit = 0;
-		lookup(hash_table, &my_assoc_mem, (prefix_code << 8) + next_char, &hit,
-				&code);
-		if (!hit) {
-			output_buff[push_index] = prefix_code;
-			push_index++;
+		lookup(hash_table, &my_assoc_mem, (prefix_code << 8) + next_char, &hit, &code);
 
-            if(bp_push_index % 3 == 0){
+		if (!hit) 
+        {
+            // insert prefix code and next character into hash table (assoc mem if collision)
+			bool collision = 0;
+			insert(hash_table, &my_assoc_mem, (prefix_code << 8) + next_char, next_code, &collision);
+			if (collision) 
+            {
+				std::cout << "ERROR: FAILED TO INSERT! NO MORE ROOM IN ASSOC MEM!" << std::endl;
+				break;
+			}
+			next_code += 1;
+
+            // Perform bitpacking
+            if(bp_push_index % 3 == 0)
+            {
                 output_byte |= (prefix_code & 0xFF0) >> 4;
                 output_hw[bp_push_index] = output_byte;
                 bp_push_index++;
@@ -271,7 +271,8 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
                 output_byte |= (prefix_code & 0x00F) << 4;
                 output_byte &= ~(0xF);
             }
-            else{
+            else
+            {
                 output_byte |= (prefix_code & 0xF00) >> 8;
                 output_hw[bp_push_index] = output_byte;
                 bp_push_index++;
@@ -282,120 +283,11 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
                 output_byte = 0;
             }
 
-			bool collision = 0;
-			insert(hash_table, &my_assoc_mem, (prefix_code << 8) + next_char,
-					next_code, &collision);
-			if (collision) {
-				std::cout << "ERROR: FAILED TO INSERT! NO MORE ROOM IN ASSOC MEM!" << std::endl;
-//				*out_hw_size = push_index;
-				break;
-			}
-			next_code += 1;
-
 			prefix_code = next_char;
 		} else {
+            // Take value from hash table if found there
 			prefix_code = code;
 		}
-
 		i++;
-	}
-}
-//****************************************************************************************************************
-// "Golden" functions to check correctness
-//std::vector<int> encoding(std::string s1)
-//{
-//    //std::cout << "Encoding\n";
-//    std::unordered_map<std::string, int> table;
-//    for (int i = 0; i <= 255; i++) {
-//        std::string ch = "";
-//        ch += char(i);
-//        table[ch] = i;
-//    }
-//
-//    std::string p = "", c = "";
-//    p += s1[0];
-//    int code = 256;
-//    std::vector<int> output_code;
-//    //std::cout << "String\tOutput_Code\tAddition\n";
-//    for (int i = 0; i < s1.length(); i++) {
-//        if (i != s1.length() - 1)
-//            c += s1[i + 1];
-//        if (table.find(p + c) != table.end()) {
-//            p = p + c;
-//        }
-//        else {
-//            //std::cout << p << "\t" << table[p] << "\t\t" << p + c << "\t" << code << std::endl;
-//            output_code.push_back(table[p]);
-//            table[p + c] = code;
-//            code++;
-//            p = c;
-//        }
-//        c = "";
-//    }
-//    //std::cout << p << "\t" << table[p] << std::endl;
-//
-//    output_code.push_back(table[p]);
-//    return output_code;
-//}
-
-//void decoding(std::vector<int> op)
-//{
-//    std::cout << "\n\n-----------------------\n\n";
-//    std::unordered_map<int, std::string> table;
-//    for (int i = 0; i <= 255; i++) {
-//        std::string ch = "";
-//        ch += char(i);
-//        table[i] = ch;
-//    }
-//    int old = op[0], n;
-//    std::string s = table[old];
-//    std::string c = "";
-//    c += s[0];
-//    std::cout << s;
-//    int count = 256;
-//    for (int i = 0; i < op.size() - 1; i++) {
-//        n = op[i + 1];
-//        if (table.find(n) == table.end()) {
-//            s = table[old];
-//            s = s + c;
-//        }
-//        else {
-//            s = table[n];
-//        }
-//        std::cout << s;
-//        c = "";
-//        c += s[0];
-//        table[count] = table[old] + c;
-//        count++;
-//        old = n;
-//    }
-//}
-
-void bitpack(int *input, int input_size, BYTE *output) {
-	unsigned char output_byte = 0;
-	//    std::vector<unsigned char> vec;
-	uint32_t push_index = 0;
-
-	for (int i = 0; i < input_size; i += 2) {
-		output_byte |= (input[i] & 0xFF0) >> 4;
-		//        vec.push_back(output_byte);
-		output[push_index] = output_byte;
-		push_index++;
-		output_byte = 0;
-		output_byte |= (input[i] & 0x00F) << 4;
-		if (input_size % 2 != 0 && i == input_size - 1) {
-			output_byte &= ~(0xF);
-		} else {
-			output_byte |= (input[i + 1] & 0xF00) >> 8;
-			//            vec.push_back(output_byte);
-			output[push_index] = output_byte;
-			push_index++;
-			output_byte = 0;
-			output_byte |= input[i + 1] & 0x0FF;
-		}
-		//        vec.push_back(output_byte);
-		output[push_index] = output_byte;
-		push_index++;
-		output_byte = 0;
 	}
 }
