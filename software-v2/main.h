@@ -43,7 +43,7 @@ typedef struct hashtable
     bool seen;
 }hashtable_t;
 
-void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &hashTable, FILE *encode_fp);
+void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &hashTable, FILE *encode_fp, volatile int done);
 bool dedup(std::vector<hashtable_t> &hashTable, unsigned long chunk_ctr, unsigned char *sha_output);
 void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_arr, unsigned int s1_len);
 std::vector<int> encoding(std::string s1);

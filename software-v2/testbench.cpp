@@ -58,14 +58,14 @@ int main()
 		server.get_packet(&input[0]);
 
         // check for length and done bit 
-		done = input[1] & DONE_BIT_L;
+		done = (input[1] & DONE_BIT_L) >> 7;
 		length = input[0] | (input[1] << 8);
 		length &= ~DONE_BIT_H;
         
         //only call cdc if length is not 0
         if(length != 0){
             unsigned char *in_buf = input + HEADER;
-            cdc(in_buf, length, sha_table, encode_fp);
+            cdc(in_buf, length, sha_table, encode_fp, done);
             memset(input,0,PACKET_SIZE);
         }
         else{
@@ -77,7 +77,6 @@ int main()
 
 	fclose(encode_fp);
 	decoder(ENCODER_OUT_FILE, DECODER_OUT_FILE);
-
-	return fail;
+    return 0;
 }
 

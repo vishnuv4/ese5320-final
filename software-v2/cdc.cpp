@@ -3,6 +3,8 @@
 #include <climits>
 static const uint32_t pow_replace[17] = {3, 9, 27, 81, 243, 729, 2187, 6561, 19683, 59049, 177147, 531441, 1594323, 4782969, 14348907, 43046721, 129140163};
 static uint32_t chunk_ctr=0;
+static unsigned char compressed_data[COMPRESSED_DATA_SIZE];
+static unsigned int data_fill = 0;
 
 uint64_t hash_func(unsigned char* input, unsigned int pos)
 {
@@ -13,9 +15,36 @@ uint64_t hash_func(unsigned char* input, unsigned int pos)
     return hash;
 }
 
-void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &sha_table, FILE *encode_fp)
+void store_compressed_data(uint32_t header, unsigned char *output_hw, int output_hw_size, FILE *encode_fp, volatile int done, bool seen)
 {
+    if(seen)
+    {
+        if(data_fill + sizeof(uint32_t) >= COMPRESSED_DATA_SIZE)
+        {
+            fwrite(compressed_data, sizeof(unsigned char), data_fill, encode_fp);
+            data_fill = 0;
+            memset(compressed_data, 0, COMPRESSED_DATA_SIZE);
+        }
+        memcpy(&compressed_data[data_fill], &header, sizeof(uint32_t));
+        data_fill += sizeof(uint32_t);
+    }
+    else
+    {
+        if(data_fill + sizeof(uint32_t) + output_hw_size >= COMPRESSED_DATA_SIZE)
+        {
+            fwrite(compressed_data, sizeof(unsigned char), data_fill, encode_fp);
+            data_fill = 0;
+            memset(compressed_data, 0, COMPRESSED_DATA_SIZE);
+        }
+        memcpy(&compressed_data[data_fill], &header, output_hw_size);
+        data_fill += sizeof(uint32_t);
+        memcpy(&compressed_data[data_fill], output_hw, output_hw_size);
+        data_fill += output_hw_size;
+    }
+}
 
+void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &sha_table, FILE *encode_fp, volatile int done)
+{
     unsigned char output_hw[CHUNK_SIZE];            // Output of LZW compression
     char chunk_arr[CHUNK_SIZE];                     // Array to store the extracted chunk after CDC marks start and end
     unsigned char sha_output[SHA256_BLOCK_SIZE];    // Array to store SHA256 digest for each chunk.
@@ -69,7 +98,8 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
 				header = (sha_table.back().id);
 				header = header << 1;
 				header |= (1<<0);
-				fwrite(&header, sizeof(uint32_t), 1, encode_fp);
+//				fwrite(&header, sizeof(uint32_t), 1, testfile);
+                store_compressed_data(header, output_hw, 4, encode_fp, done, seen);
             }
             else
             {
@@ -90,8 +120,9 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
 				header = output_hw_size;
 				header = header << 1;
 				header &= ~(1<<0);
-				fwrite(&header, sizeof(uint32_t), 1, encode_fp);
-				fwrite(output_hw, sizeof(unsigned char), output_hw_size, encode_fp);
+//				fwrite(&header, sizeof(uint32_t), 1, testfile);
+//				fwrite(output_hw, sizeof(unsigned char), output_hw_size, encode_fp);
+                store_compressed_data(header, output_hw, output_hw_size, encode_fp, done, seen);
             }
             //Increment counter to keep track of indices
             j++;
@@ -115,7 +146,12 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
         header = (sha_table.back().id);
         header = header << 1;
         header |= (1<<0);
-        fwrite(&header, sizeof(uint32_t), 1, encode_fp);
+//        fwrite(&header, sizeof(uint32_t), 1, testfile);
+        store_compressed_data(header, output_hw, 4, encode_fp, done, seen);
+        if(done == 1)
+        {
+            fwrite(compressed_data, sizeof(unsigned char), data_fill, encode_fp);
+        }
     }
     else
     {
@@ -135,8 +171,13 @@ void cdc(unsigned char* buff, unsigned int buff_size, std::vector<hashtable_t> &
         header = output_hw_size;
         header = header << 1;
         header &= ~(1<<0);
-        fwrite(&header, sizeof(uint32_t), 1, encode_fp);
-        fwrite(output_hw, sizeof(unsigned char), output_hw_size, encode_fp);
+//        fwrite(&header, sizeof(uint32_t), 1, testfile);
+//        fwrite(output_hw, sizeof(unsigned char), output_hw_size, testfile);
+        store_compressed_data(header, output_hw, output_hw_size, encode_fp, done, seen);
+        if(done == 1)
+        {
+            fwrite(compressed_data, sizeof(unsigned char), data_fill, encode_fp);
+        }
     }
 
     // Clear chunk indices and chunk size for the next packet

@@ -12,6 +12,10 @@ run: all encode
 all: $(ENCODER_SOURCES) $(DECODER_SOURCES)
 	$(COMPILER) -o $(OUTPUT) $(ENCODER_SOURCES)
 
+.PHONY: debug
+debug: $(ENCODER_SOURCES) $(DECODER_SOURCES)
+	$(COMPILER) -g -Wall -o $(OUTPUT) $(ENCODER_SOURCES)
+
 .PHONY: clean
 clean:
 	rm $(OUTPUT) $(CODED_FILE) $(DECODED_FILE)
