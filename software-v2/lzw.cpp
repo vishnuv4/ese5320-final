@@ -213,12 +213,6 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 	unsigned long hash_table[CAPACITY][2];
 	assoc_mem my_assoc_mem;
 
-    //new
-    unsigned char output_byte2 = 0;
-    uint32_t bp_push_index2 = 0;
-    unsigned char output_hw2[PACKET_SIZE];
-    //end
-
 	// make sure the memories are clear
 	for (int i = 0; i < CAPACITY; i++) {
 		for (int j = 0; j < 2; j++) {
@@ -231,13 +225,6 @@ void hardware_encoding(int *out_hw_size, unsigned char *output_hw, char *chunk_a
 		my_assoc_mem.middle_key_mem[i] = 0;
 		my_assoc_mem.lower_key_mem[i] = 0;
 	}
-
-	// //init the memories with the first 256 codes
-	// for (unsigned long i = 1; i < 256; i++) {
-	// 	bool collision = 0;
-	// 	unsigned int key = (i << 8) + 0UL; // lower 8 bits are the next char, the upper bits are the prefix code
-	// 	insert(hash_table, &my_assoc_mem, key, i, &collision);
-	// }
 
 	unsigned int i = 0;
 	while (i < s1_len) {
